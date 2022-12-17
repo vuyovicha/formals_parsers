@@ -32,7 +32,7 @@ class Rule {
     return left < other.left;
   }
 
-  bool operator==(const Rule& other) const {
+  bool operator==(const Rule &other) const {
     return left == other.left && right == other.right;
   }
 
@@ -54,6 +54,16 @@ class Grammar {
       rules.emplace_back(left_part, right_part);
     }
     rules.insert(rules.begin(), Rule(master_starting_non_terminal, starting_non_terminal));
+  }
+
+  std::vector<Rule> GetRulesWithNeededLeftPart(const std::string &needed_left_part) {
+    std::vector<Rule> needed_rules;
+    for (auto &rule : rules) {
+      if (rule.left == needed_left_part) {
+        needed_rules.push_back(rule);
+      }
+    }
+    return needed_rules;
   }
 
   explicit Grammar(std::vector<Rule> rules_in) {
@@ -81,13 +91,13 @@ class Grammar {
 
 class Situation {
  public:
-  Situation(const Rule& rule_in, size_t dot_position_in, size_t index_in) {
+  Situation(const Rule &rule_in, size_t dot_position_in, size_t index_in) {
     rule = rule_in;
     dot_position = dot_position_in;
     index = index_in;
   }
 
-  bool operator<(const Situation& other) const {
+  bool operator<(const Situation &other) const {
     if (rule == other.rule) {
       if (dot_position == other.dot_position) {
         return index < other.index;
@@ -106,9 +116,7 @@ class Situation {
 
 class ParserEarley {
  public:
-  explicit ParserEarley(Grammar grammar) : grammar_(std::move(grammar)) {
-
-  }
+  explicit ParserEarley(Grammar grammar) : grammar_(std::move(grammar)) {}
 
   void AnswerQueries() {
     size_t queries_amount;
@@ -136,7 +144,7 @@ class ParserEarley {
         Scan(i - 1, word[i - 1]);
       }
       bool set_changed = true;
-      while(set_changed) {
+      while (set_changed) {
         set_changed = false;
         size_t set_size = situations_[i].size();
         Predict(i);
@@ -148,17 +156,33 @@ class ParserEarley {
   }
 
   void Scan(size_t situation_set_index, char symbol) {
-    for (auto& situation : situations_[situation_set_index]) {
-      std::vector<Rule> needed_left_part_rules;
+    for (auto &situation : situations_[situation_set_index]) {
+      if (symbol == situation.rule.right[situation.dot_position]) {
+        situations_[situation_set_index].insert(Situation(situation.rule, 1 + situation.dot_position, situation.index));
+      }
     }
   }
 
   void Predict(size_t situation_set_index) {
-
+    for (auto &situation : situations_[situation_set_index]) {
+      std::vector<Rule>
+          needed_left_part_rules = grammar_.GetRulesWithNeededLeftPart(situation.rule.right[situation.dot_position]);
+      for (auto &rule : needed_left_part_rules) {
+        situations_[situation_set_index].insert(Situation(rule, 0, situation_set_index));
+      }
+    }
   }
 
   void Complete(size_t situation_set_index) {
-
+    for (auto &situation : situations_[situation_set_index]) {
+      if (situation.dot_position == situation.rule.right.length()) {
+        for (auto& new_situation : situations_[situation.index]) {
+          if (situation.rule.left == new_situation.rule.right[new_situation.dot_position]) {
+            situations_[situation_set_index].insert(Situation(new_situation.rule, 1 + new_situation.dot_position, new_situation.index));
+          }
+        }
+      }
+    }
   }
 
   std::vector<std::set<Situation>> situations_;
